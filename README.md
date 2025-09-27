@@ -1,256 +1,274 @@
-# Título: Aplicar RNA aos dados obtidos dos espectros teóricos das moléculas do tipo e Opioides e Benzodiazepínicos para fins de Classificação - Versão 27.09.25
+#===============================================================
+# SCRIPT COMPLETO - REDE NEURAL ARTIFICIAL (Deep Learning em R)
+#===============================================================
 
-# Parte 1 - Incluir procedimento para garantir a reprodutibilidade.
-```{r}
-set.seed(0)
-```
+# PARTE 0 - INSTALAÇÃO E REPRODUTIBILIDADE
+# ---------------------------------------------------------------
 
-# Parte 2 - Baixar o banco de dados 
-```{r}
-#Carregar os dados dos BZs
+# Instale os pacotes necessários (se ainda não os tiver)
+# install.packages("readxl")
+# install.packages("sigmoid")
+
+# Carregar os pacotes
 library(readxl)
-data <- read_excel("C:/users/Usuário/Desktop/RNA_Densa/Data_TCC_Class_F.xlsx")
-View(data)
+library(sigmoid)
 
-#Definir conjunto de treino e teste_Train Test Split
+# Incluir procedimento para garantir a reprodutibilidade.
+set.seed(0)
+
+# PARTE 1 - PRÉ-PROCESSAMENTO DE DADOS
+# ---------------------------------------------------------------
+
+# Carregar os dados (ATENÇÃO: verifique e ajuste o caminho do arquivo)
+# Mantenha o arquivo 'Data_TCC_Class_F.xlsx' neste caminho ou ajuste-o.
+data <- read_excel("C:/users/Usuário/Desktop/RNA_Densa/Data_TCC_Class_F.xlsx")
+
+# Definir conjunto de treino e teste (75% treino, 25% teste)
 train_test_split_index <- 0.75 * nrow(data)
 
+# Seu conjunto de dados tem 40 observações: 40 * 0.75 = 30 linhas para treino
 train <- data.frame(data[1:train_test_split_index,])
-test <- data.frame(data[(train_test_split_index+1): nrow(data),])
+test <- data.frame(data[(train_test_split_index + 1): nrow(data),])
 
-#Definir as variáveis explicativas (X) e definir as variáveis explicadas ou target (Y=f(x)).
+# Definir as variáveis explicativas (X) e a variável target (Y)
 train_x <- data.frame(train[1:3601])
 train_y <- data.frame(train[3602])
 
 test_x <- data.frame(test[1:3601])
 test_y <- data.frame(test[3602])
 
-#Transposição da matriz para facilitar a construção da arquitetura de rede
+# Transposição da matriz (Observações nas colunas, Variáveis nas linhas)
 train_x <- t(train_x)
 train_y <- t(train_y)
 
-test_x <- t(test_x )
+test_x <- t(test_x)
 test_y <- t(test_y)
 
-```
 
-#### Função 1 - Criar a arquitetura da rede
-```{r}
-getLayerSize <- function(X, y, hidden_neurons) {
-  n_x <- dim(X)[1] #quantidade de linhas de x = neurônios da camada de entrada
-  n_h <- hidden_neurons #quantidade de neurônios na camada escondida
-  n_y <- dim(y)[1] #quantidade de linhas de y = neurônios da camada de saída
+# PARTE 2 - FUNÇÕES DA REDE NEURAL (GENERALIZADAS)
+# ---------------------------------------------------------------
+
+# Função 1 - Criar a arquitetura da rede (AGORA SUPORTA MÚLTIPLAS CAMADAS)
+getLayerSize <- function(X, y, hidden_layer_sizes) {
+  n_x <- dim(X)[1] # Camada de entrada (3601)
+  n_y <- dim(y)[1] # Camada de saída (1)
   
-  size <- list("n_x" = n_x,
-               "n_h" = n_h,
-               "n_y" = n_y)
+  # O vetor de tamanhos incluirá entrada, camadas escondidas e saída
+  layer_sizes <- c(n_x, hidden_layer_sizes, n_y)
+  
+  size <- list("layer_sizes" = layer_sizes,
+               "num_layers" = length(layer_sizes) - 1) # Número de pares (W, b)
   
   return(size)
 }
-```
- 
-#### Aplicar a função de criação de arquitetura
-```{r}
-layer_size <- getLayerSize(train_x, train_y, hidden_neurons = 4)
-layer_size
-```
 
-# Função 2 - Inicializa Parâmetros randomicamente
-#### A partir da arquitetura, inicializar os parâmetros randomicamente. O primeiro conjunto é W1 e b1. O segundo é  W2 and b2.O valor destes parâmetros dependem do tamanho das camadas de entrada e saída.
-```{r}
 
-initializeParameters <- function(X, layer_size){
+# Função 2 - Inicializa Parâmetros randomicamente (AGORA SUPORTA MÚLTIPLAS CAMADAS)
+initializeParameters <- function(layer_size){
+  
+  layer_sizes <- layer_size$layer_sizes
+  num_layers <- layer_size$num_layers
+  params <- list()
+  
+  # Loop para inicializar pesos (W) e bias (b) para todas as camadas
+  for (l in 1:num_layers) {
+    W_name <- paste0("W", l)
+    b_name <- paste0("b", l)
     
-    n_x <- layer_size$n_x
-    n_h <- layer_size$n_h
-    n_y <- layer_size$n_y
-        
-    W1 <- matrix(runif(n_h * n_x), nrow = n_h, ncol = n_x, byrow = TRUE) * 0.01
-    W2 <- matrix(runif(n_y * n_h), nrow = n_y, ncol = n_h, byrow = TRUE) * 0.01
+    # Inicialização He (apenas para garantir que a rede mais profunda funcione melhor)
+    # W[l]: matriz de layer_sizes[l+1] x layer_sizes[l]
+    params[[W_name]] <- matrix(runif(layer_sizes[l+1] * layer_sizes[l], min = -1, max = 1), 
+                               nrow = layer_sizes[l+1], ncol = layer_sizes[l]) * sqrt(2 / layer_sizes[l])
     
-    params <- list("W1" = W1,
-                   "W2" = W2)
-    
-    return (params)
+    # b[l]: vetor de layer_sizes[l+1] x 1
+    params[[b_name]] <- matrix(0, nrow = layer_sizes[l+1], ncol = 1)
+  }
+  
+  return (params)
 }
-```
 
-#### Aplicar a função de inicializar pesos.
-```{r}
-init_params <- initializeParameters(train_x, layer_size)
-lapply(init_params, function(x) dim(x))
-```
+# Funções de Ativação (Mantemos a Sigmoide conforme seu projeto original)
+# A função sigmoide será chamada via 'sigmoid::sigmoid(Z)' no Forward Propagation.
 
 
-# Função 3 - Função Sigmoide
-#### Função de ativação utilizada neste trabalho. 
-
-```{r}
-Sigmoid <- function(x){
-    return(x, lambda = 2)
-}
-```
-
-# Função 4 - Forward Propagation
-#### Iniciar o processo de geração de resultados, multiplicando a matrizes por meio do operador %*%. 
-```{r}
+# Função 3 - Forward Propagation (CORRIGIDA)
 forwardPropagation <- function(X, params, layer_size){
+  
+  num_layers <- layer_size$num_layers
+  A_prev <- X
+  cache <- list("A0" = X) 
+  
+  # Loop de Propagação
+  for (l in 1:num_layers) {
+    W <- params[[paste0("W", l)]]
+    b <- params[[paste0("b", l)]]
     
-    n_h <- layer_size$n_h
-    n_y <- layer_size$n_y
+    # Z = W * A_prev + b 
+    # CORREÇÃO APLICADA AQUI: Usando sweep() para somar o bias 'b' a cada coluna de W %*% A_prev
+    Z_temp <- W %*% A_prev
+    Z <- sweep(Z_temp, 1, b, "+") # Garante que 'b' (margem 1=linha) seja somado a cada coluna de Z_temp
     
-    W1 <- params$W1
-    W2 <- params$W2
+    A <- sigmoid::sigmoid(Z)
     
-    
-    Z1 <- W1 %*% X
-    A1 <- sigmoid::sigmoid(Z1)
-    Z2 <- W2 %*% A1
-    A2 <- sigmoid::sigmoid(Z2)
-    
-    cache <- list("Z1" = Z1,
-                  "A1" = A1, 
-                  "Z2" = Z2,
-                  "A2" = A2)
-
-    return (cache)
+    # Armazena Z e A no cache
+    cache[[paste0("Z", l)]] <- Z
+    cache[[paste0("A", l)]] <- A
+    A_prev <- A 
+  }
+  
+  cache[["A_final"]] <- A_prev 
+  return (cache)
 }
-```
 
 
-#### Aplicar a função de forward propagation
-```{r}
-fwd_prop <- forwardPropagation(train_x, init_params, layer_size)
-```
-
-
-# Função 5- Cost Function
-#### Mean Squared Error
-```{r}
+# Função 4 - Cost Function (Mean Squared Error)
 computeCost <- function(y, cache) {
-    
-    m <- dim(y)[2]
-    
-    A2 <- cache$A2
-
-    cost <- sum((y-A2)^2)/m
-    
-    return (cost)
+  m <- dim(y)[2]
+  A_final <- cache[["A_final"]]
+  
+  # Custo (MSE - Mean Squared Error)
+  cost <- sum((y - A_final)^2) / m
+  
+  return (cost)
 }
-```
 
 
-#### Aplicar a função custo
-```{r}
-cost <- computeCost(train_y, fwd_prop)
-```
-
-
-# Função 6 - Backpropagation
-```{r}
+# Função 5 - Backpropagation (AGORA SUPORTA MÚLTIPLAS CAMADAS)
 backwardPropagation <- function(X, y, cache, params, layer_size){
+  
+  m <- dim(X)[2]
+  num_layers <- layer_size$num_layers
+  grads <- list()
+  
+  # Etapa 1: Calcular o erro (dZ) na CAMADA DE SAÍDA (L=num_layers)
+  L <- num_layers
+  A_final <- cache[[paste0("A", L)]]
+  dZ <- A_final - y # dZ[L] (Erro do MSE)
+  
+  # Gradiente de W[L] e b[L]
+  A_prev <- cache[[paste0("A", L - 1)]]
+  grads[[paste0("dW", L)]] <- 1/m * (dZ %*% t(A_prev))
+  grads[[paste0("db", L)]] <- 1/m * rowSums(dZ)
+  
+  # Etapa 2: Propagar o erro para trás (l = L-1 até 1)
+  for (l in (L - 1):1) {
+    W_next <- params[[paste0("W", l + 1)]]
+    A_l <- cache[[paste0("A", l)]]
+    A_prev <- cache[[paste0("A", l - 1)]]
     
-    m <- dim(X)[2]
+    # Cálculo do dZ[l] (Propagação + Derivada da Sigmoide)
+    # Derivada da Sigmoide: A * (1 - A)
+    dZ <- (t(W_next) %*% dZ) * (A_l * (1 - A_l)) 
     
-    n_x <- layer_size$n_x
-    n_h <- layer_size$n_h
-    n_y <- layer_size$n_y
-
-    A2 <- cache$A2
-    A1 <- cache$A1
-    W2 <- params$W2
-
-    
-    dZ2 <- A2 - y
-    dW2 <- 1/m * (dZ2 %*% t(A1)) 
-
-    
-    dZ1 <- (t(W2) %*% dZ2) * (1 - A1^2)
-    dW1 <- 1/m * (dZ1 %*% t(X))
-
-    
-    grads <- list("dW1" = dW1, 
-                  "dW2" = dW2)
-    
-    return(grads)
+    # Gradientes de W[l] e b[l]
+    grads[[paste0("dW", l)]] <- 1/m * (dZ %*% t(A_prev))
+    grads[[paste0("db", l)]] <- 1/m * rowSums(dZ)
+  }
+  
+  return(grads)
 }
-```
 
-# Função 7 - Atualizar os pesos
-#### A atualização de pesos é feita com base nos cálculos anteriores e na taxa de aprendizagem (LR).
-```{r}
-updateParameters <- function(grads, params, learning_rate){
 
-    W1 <- params$W1
-    W2 <- params$W2
+# Função 6 - Atualizar os pesos (AGORA SUPORTA MÚLTIPLAS CAMADAS)
+updateParameters <- function(grads, params, learning_rate, layer_size){
+  
+  num_layers <- layer_size$num_layers
+  updated_params <- params
+  
+  for (l in 1:num_layers) {
+    W_name <- paste0("W", l)
+    b_name <- paste0("b", l)
+    dW_name <- paste0("dW", l)
+    db_name <- paste0("db", l)
     
-    dW1 <- grads$dW1
-    dW2 <- grads$dW2
-    
-    
-    W1 <- W1 - learning_rate * dW1
-    W2 <- W2 - learning_rate * dW2
-    
-    updated_params <- list("W1" = W1,
-                           "W2" = W2)
-    
-    return (updated_params)
+    # Atualização Gradiente Descendente
+    updated_params[[W_name]] <- params[[W_name]] - learning_rate * grads[[dW_name]]
+    updated_params[[b_name]] <- params[[b_name]] - learning_rate * grads[[db_name]]
+  }
+  
+  return (updated_params)
 }
-```
 
-# Parte 9 - Treinar modelo
-#### Quais as etapas serão envolvidas?
-- Arquitetura da rede.
-- Inicializa um vetor de historia da função custo para guardar resultados.
-- Faz foward loop.
-- Calcula perda.
-- Atualiza parâmetros.
-- Usa os novos parâmetros.
 
-##### Entrar com o conceitos de épocas (EPOCHS).
-```{r}
-trainModel <- function(X, y, num_iteration, hidden_neurons, lr){
+# PARTE 3 - TREINAMENTO E AVALIAÇÃO DO MODELO
+# ---------------------------------------------------------------
+
+# Função 7 - Treinar o modelo (Loop Principal)
+trainModel <- function(X, y, num_iteration, hidden_layers, lr){
+  
+  layer_size <- getLayerSize(X, y, hidden_layers)
+  params <- initializeParameters(layer_size)
+  
+  cost_history <- c()
+  
+  for (i in 1:num_iteration) {
+    # Forward
+    fwd_prop <- forwardPropagation(X, params, layer_size)
     
-    layer_size <- getLayerSize(X, y, hidden_neurons)
-    init_params <- initializeParameters(X, layer_size)
+    # Custo
+    cost <- computeCost(y, fwd_prop)
+    cost_history <- c(cost_history, cost)
     
-    cost_history <- c()
-
-    for (i in 1:num_iteration) {
-        fwd_prop <- forwardPropagation(X, init_params, layer_size)
-        cost <- computeCost(y, fwd_prop)
-        back_prop <- backwardPropagation(X, y, fwd_prop, init_params, layer_size)
-        update_params <- updateParameters(back_prop, init_params, learning_rate = lr)
-        init_params <- update_params
-        cost_history <- c(cost_history, cost)
-        
+    # Backward
+    back_prop <- backwardPropagation(X, y, fwd_prop, params, layer_size)
+    
+    # Update
+    params <- updateParameters(back_prop, params, learning_rate = lr, layer_size)
+    
+    # Opcional: Imprimir o custo a cada N iterações
+    if (i %% 500 == 0) {
+      cat(sprintf("Custo na iteração %d: %f\n", i, cost))
     }
-    
-    model_out <- list("updated_params" = update_params,
-                      "cost_hist" = cost_history)
-
-    return (model_out)
+  }
+  
+  model_out <- list("updated_params" = params,
+                    "cost_hist" = cost_history)
+  
+  return (model_out)
 }
-```
 
-#### Aplicar o treinamento
-```{r}
-EPOCHS = 100
-HIDDEN_NEURONS = 40
-LEARNING_RATE = 0.01
 
-train_model <- trainModel(train_x, train_y, hidden_neurons = HIDDEN_NEURONS, num_iteration = EPOCHS, lr = LEARNING_RATE)
-```
+# ------------------ HIPERPARÂMETROS ------------------
+# Nova arquitetura com 3 camadas escondidas
+HIDDEN_LAYERS = c(50, 20, 10) 
+EPOCHS = 5000       # Aumentado para melhor convergência
+LEARNING_RATE = 0.5 # Taxa de aprendizado ajustada (pode precisar de ajuste fino)
+# -----------------------------------------------------
 
-#### Testar os resultados
-```{r}
-#Gera previsões
-layer_size <- getLayerSize(test_x, test_y, HIDDEN_NEURONS)
+# Aplicar o treinamento
+cat("\nIniciando o Treinamento do Modelo...\n")
+train_model <- trainModel(train_x, train_y, 
+                          hidden_layers = HIDDEN_LAYERS, 
+                          num_iteration = EPOCHS, 
+                          lr = LEARNING_RATE)
+cat("Treinamento concluído.\n")
+
+# PARTE 4 - RESULTADOS E AVALIAÇÃO
+# ---------------------------------------------------------------
+
+# 1. Avaliação Visual do Custo
+plot(train_model$cost_hist, type = 'l', 
+     main = "Histórico da Função Custo", 
+     xlab = "Época", ylab = "Custo (MSE)")
+
+
+# 2. Geração de Previsões no Conjunto de Teste
+layer_size_test <- getLayerSize(test_x, test_y, HIDDEN_LAYERS)
 params <- train_model$updated_params
-fwd_prop <- forwardPropagation(test_x, params, layer_size)
-y_pred <- fwd_prop$A2
-compare <- rbind(y_pred,test_y)
+fwd_prop_test <- forwardPropagation(test_x, params, layer_size_test)
 
-#Verifica função custo
-plot(train_model$cost_hist)
-```
+# A previsão final (A_final)
+y_pred <- fwd_prop_test$A_final
+
+# Aplica um limiar (threshold) para classificação binária
+# Valores acima de 0.5 são da classe 1, abaixo de 0.5 são da classe 0.
+y_pred_class <- ifelse(y_pred > 0.5, 1, 0)
+
+
+# 3. Comparação e Acurácia
+cat("\nComparação entre Previsões (y_pred) e Real (test_y):\n")
+compare <- rbind(Previsao = y_pred_class, Real = test_y)
+print(compare)
+
+accuracy <- mean(y_pred_class == test_y)
+cat(sprintf("\nAcurácia no Conjunto de Teste: %.2f%%\n", accuracy * 100))
