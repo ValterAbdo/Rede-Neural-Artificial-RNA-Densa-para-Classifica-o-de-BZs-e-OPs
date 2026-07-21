@@ -1,9 +1,9 @@
-#===============================================================
-# SCRIPT COMPLETO - REDE NEURAL ARTIFICIAL (Deep Learning em R)
-#===============================================================
+#=========================================================================
+# SCRIPT COMPLETO - RNA-DENSA C/ SELEÇÃO DE VARIÁVEIS (Deep Learning em R)
+#=========================================================================
 
 # PARTE 0 - INSTALAÇÃO E REPRODUTIBILIDADE
-# ---------------------------------------------------------------
+# ------------------------------------------------------------------------
 
 # Instale os pacotes necessários (se ainda não os tiver)
 # install.packages("readxl")
@@ -17,11 +17,11 @@ library(sigmoid)
 set.seed(0)
 
 # PARTE 1 - PRÉ-PROCESSAMENTO DE DADOS
-# ---------------------------------------------------------------
+# -------------------------------------------------------------------------
 
 # Carregar os dados (ATENÇÃO: verifique e ajuste o caminho do arquivo)
 # Mantenha o arquivo 'Data_TCC_Class_F.xlsx' neste caminho ou ajuste-o.
-data <- read_excel("C:/users/Usuário/Desktop/RNA_Densa/Data_TCC_Class_F.xlsx")
+data <- read_excel("C:/users/Usuário/Desktop/RNA_Densa/Data_TCC_Class_F_SV_B.xlsx")
 
 # Definir conjunto de treino e teste (75% treino, 25% teste)
 train_test_split_index <- 0.75 * nrow(data)
@@ -31,11 +31,11 @@ train <- data.frame(data[1:train_test_split_index,])
 test <- data.frame(data[(train_test_split_index + 1): nrow(data),])
 
 # Definir as variáveis explicativas (X) e a variável target (Y)
-train_x <- data.frame(train[1:3601])
-train_y <- data.frame(train[3602])
+train_x <- data.frame(train[1:3])
+train_y <- data.frame(train[4])
 
-test_x <- data.frame(test[1:3601])
-test_y <- data.frame(test[3602])
+test_x <- data.frame(test[1:3])
+test_y <- data.frame(test[4])
 
 # Transposição da matriz (Observações nas colunas, Variáveis nas linhas)
 train_x <- t(train_x)
@@ -50,7 +50,7 @@ test_y <- t(test_y)
 
 # Função 1 - Criar a arquitetura da rede (AGORA SUPORTA MÚLTIPLAS CAMADAS)
 getLayerSize <- function(X, y, hidden_layer_sizes) {
-  n_x <- dim(X)[1] # Camada de entrada (3601)
+  n_x <- dim(X)[1] # Camada de entrada (3)
   n_y <- dim(y)[1] # Camada de saída (1)
   
   # O vetor de tamanhos incluirá entrada, camadas escondidas e saída
@@ -63,8 +63,7 @@ getLayerSize <- function(X, y, hidden_layer_sizes) {
 }
 
 
-# Função 2 - Inicializa Parâmetros randomicamente (AGORA SUPORTA MÚLTIPLAS CAMADAS)
-initializeParameters <- function(layer_size){
+# Função 2 - Inicializa Parâmetros randomicamente (AGORA SUPORTA MÚLTIPLAS CAMADAS)initializeParameters <- function(layer_size){
   
   layer_sizes <- layer_size$layer_sizes
   num_layers <- layer_size$num_layers
@@ -230,9 +229,9 @@ trainModel <- function(X, y, num_iteration, hidden_layers, lr){
 
 # ------------------ HIPERPARÂMETROS ------------------
 # Nova arquitetura com 3 camadas escondidas
-HIDDEN_LAYERS = c(50, 20, 10) 
-EPOCHS = 5000       # Aumentado para melhor convergência
-LEARNING_RATE = 0.5 # Taxa de aprendizado ajustada (pode precisar de ajuste fino)
+HIDDEN_LAYERS = c(10,50,10) 
+EPOCHS = 50       # Aumentado para melhor convergência
+LEARNING_RATE = 0.01 # Taxa de aprendizado ajustada (pode precisar de ajuste fino)
 # -----------------------------------------------------
 
 # Aplicar o treinamento
@@ -261,8 +260,8 @@ fwd_prop_test <- forwardPropagation(test_x, params, layer_size_test)
 y_pred <- fwd_prop_test$A_final
 
 # Aplica um limiar (threshold) para classificação binária
-# Valores acima de 0.5 são da classe 1, abaixo de 0.5 são da classe 0.
-y_pred_class <- ifelse(y_pred > 0.5, 1, 0)
+# Valores abaixo de 0.5622968 são da classe 0, acima são da classe 1.
+y_pred_class <- ifelse(y_pred < 0.5622968, 0, 1)
 
 
 # 3. Comparação e Acurácia
@@ -272,3 +271,4 @@ print(compare)
 
 accuracy <- mean(y_pred_class == test_y)
 cat(sprintf("\nAcurácia no Conjunto de Teste: %.2f%%\n", accuracy * 100))
+
